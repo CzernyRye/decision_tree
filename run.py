@@ -4,6 +4,7 @@
 from __future__ import division
 from math import log
 import csv
+import pydot
 
 """
 # Attribute description (Global variable)
@@ -43,6 +44,8 @@ class DecisionTree():
 
 	tree = {}
 
+	graph = pydot.Dot(graph_type='graph')
+
 	def learn(self, data, attributes):
 		'''''''''
 		Returns a new decision tree based on the example given
@@ -53,7 +56,7 @@ class DecisionTree():
 
 		# If the dataset is empty or the attributes list is empty, return the
 		# default value.
-		if not data or (len(attributes)) <= 0:
+		if len(data) <= 5000 or (len(attributes)) <= 0:
 			return default
 		#  If all the records in the dataset have the same classification,
 		# return that classification
@@ -99,8 +102,6 @@ class DecisionTree():
 		self.tree = tree
 		return self.tree
 
-
-
 	def classify(self, test_instance):
 		tree = self.tree
 
@@ -109,7 +110,11 @@ class DecisionTree():
 			col = attribute_property[attr]['col']
 
 			if attribute_property[attr]['val'] != 'continuous':
-				tree = tree[attr][test_instance[col]]
+				if tree[attr].has_key(test_instance[col]):
+					tree = tree[attr][test_instance[col]]
+				else:
+					result = '?' # not in training data
+					return result
 			else:
 				split = tree['split']
 				if float(test_instance[col]) < split:
@@ -122,6 +127,48 @@ class DecisionTree():
 		result = tree # baseline: always classifies as <=50K
 		return result
 
+	def plotTree(self,name):
+
+		walk_dictionary(self.graph,self.tree)
+		self.graph.write_png(name + '.png')
+
+
+
+def walk_dictionary(graph, dictionary, parent_node = None):
+	'''
+	    Recursive plotting function for the decision tree stored as a dictionary
+	'''
+	for k in dictionary:
+		if k != 'split':
+			if parent_node is not None:
+
+				from_name = parent_node.get_name().replace("\"","") + '_' + str(k)
+				from_label = str(k)
+
+				node_from = pydot.Node(from_name, label = from_label)
+				graph.add_node(node_from)
+
+				graph.add_edge( pydot.Edge(parent_node, node_from) )
+
+				if isinstance(dictionary[k], dict):
+
+					walk_dictionary(graph, dictionary[k], node_from)
+
+				else:
+					to_name = str(k) + '_' + str(dictionary[k])
+					to_label = str(dictionary[k])
+
+					node_to = pydot.Node(to_name, label = to_label, shape = 'box')
+					graph.add_node(node_to)
+					graph.add_edge(pydot.Edge(node_from, node_to))
+			else:
+
+				from_name = str(k)
+				from_label = str(k)
+
+				node_from = pydot.Node(from_name, label = from_label)
+				walk_dictionary(graph,dictionary[k], node_from)
+
 
 def get_example(data,best,val):
 	col = attribute_property[best]['col']
@@ -129,7 +176,12 @@ def get_example(data,best,val):
 	return example
 
 def get_values(data,best):
-	values = attribute_property[best]['val']
+	# values = attribute_property[best]['val']
+	values = set()
+	col = attribute_property[best]['col']
+	for record in data:
+		values.add(record[col])
+
 	return values
 
 def majority_value(data):
@@ -265,17 +317,21 @@ def run_decision_tree():
 	# Split training/test sets
 	# You need to modify the following code for cross validation.
 	accuracy = 0.0
-	for part in range(0,10):
-		K = 10
+	accu = []
+	K = 10
+	for part in range(0,1):
+
 		training_set = [x for i, x in enumerate(data) if i % K != part]
 		test_set = [x for i, x in enumerate(data) if i % K == part]
 
 
 		tree = DecisionTree()
 		# Construct a tree using training set
-		attributes = [attr for attr in attribute_property.keys() if (attr != 'fnlwgt') and (attr != 'education-num')]
+		# attributes = [attr for attr in attribute_property.keys() if (attr != 'fnlwgt') ]
+		attributes = [attr for attr in attribute_property.keys() if (attr != 'fnlwgt') and
+					  (attr != 'education-num') and (attr != 'hours-per-week')]
 		tree.learn( training_set, attributes)
-
+		tree.plotTree('name')
 		# Classify the test set using the tree we just constructed
 		results = []
 		for instance in test_set:
@@ -284,11 +340,13 @@ def run_decision_tree():
 
 		# Accuracy
 		accuracy += float(results.count(True))/float(len(results))/K
+		accu.append(float(results.count(True))/float(len(results)))
 	print "accuracy: %.4f" % accuracy
 
+
 	# Writing results to a file (DO NOT CHANGE)
-	f = open("result.txt", "w")
-	f.write("accuracy: %.4f" % accuracy)
+	f = open("result_categorical.txt", "w")
+	f.write("accuracy: %.4f" % accuracy )
 	f.close()
 
 
