@@ -1,2 +1,2 @@
 # decision_tree
-Implementation of decision tree
+My implementation of decision tree
